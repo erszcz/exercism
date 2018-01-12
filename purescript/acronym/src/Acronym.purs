@@ -4,9 +4,7 @@ module Acronym
 
 import Prelude
 import Data.Array as A
-import Data.Char as C
 import Data.Char.Unicode as U
-import Data.Maybe ( Maybe(..) )
 import Data.String as String
 import Data.Tuple ( Tuple(..) )
 
