@@ -8,11 +8,12 @@ import Data.Date
 import Partial.Unsafe
 import Prelude
 
-import Control.Apply (lift3)
+import Control.Apply (lift2, lift3)
 import Data.Array as A
 import Data.Enum (fromEnum, toEnum)
 import Data.Foldable as F
 import Data.Maybe (Maybe(..))
+import Data.Tuple (Tuple(..))
 
 data Week = First | Second | Third | Fourth | Last | Teenth
 
@@ -32,10 +33,10 @@ monthWeekdays :: Weekday -> Array Weekday
 monthWeekdays mFirstWeekday =
   -- We omit the fact that different months have different numbers of days.
   A.catMaybes (map toEnum $ weekdayNumbers)
-  where weekdayNumbers = map (integerToWeekdayNumber mFirstWeekday) (A.range 0 30)
+  where weekdayNumbers = map (integerToWeekdayNumber mFirstWeekday) (A.range 1 31)
 
 integerToWeekdayNumber :: Weekday -> Int -> Int
-integerToWeekdayNumber mFirstWeekday i = (i + firstWeekdayOffset) `mod` 7 + 1
+integerToWeekdayNumber mFirstWeekday i = (i - 1 + firstWeekdayOffset) `mod` 7 + 1
   where firstWeekdayOffset = fromEnum mFirstWeekday - 1
 
 monthFirstWeekday :: Year -> Month -> Weekday
@@ -51,8 +52,17 @@ weekNumber year month mFirstWeekday whichWeek weekday =
     Second -> 2
     Third  -> 3
     Fourth -> 4
+    -- This probably still breaks in case of 30 day long months
+    -- and the fact that `monthWeekdays` returns 31 days.
+    -- A test for 31st of a month would pass the check below and give 5,
+    -- but canonicalDate would return the first day of the next month.
     Last   -> if (isLeapYear year || month /= February)
               && (A.elem weekday $ A.drop 28 $ monthWeekdays mFirstWeekday)
                 then 5
                 else 4
-    Teenth -> 1
+    Teenth -> if 15 - (fromEnum mFirstWeekday) + (fromEnum weekday) <= 19
+                then 3
+                else 2
+
+teenth mFirstWeekday =
+  map (\i -> Tuple i (integerToWeekdayNumber mFirstWeekday i)) (A.range 13 19)
