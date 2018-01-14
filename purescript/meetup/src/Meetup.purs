@@ -11,12 +11,45 @@ import Prelude
 
 import Control.Apply (lift2, lift3)
 import Data.Array as A
-import Data.Enum (fromEnum, toEnum)
+import Data.Enum (class Enum, fromEnum, succ, toEnum)
 import Data.Foldable as F
+import Data.Generic (class Generic, gShow)
 import Data.Maybe (Maybe(..))
+import Data.Traversable as T
 import Data.Tuple (Tuple(..))
+import Math (cos)
 
 data Week = First | Second | Third | Fourth | Last | Teenth
+
+data DayInfo = DayInfo
+  { no :: Int,
+    week :: Int,
+    weekday :: Maybe Weekday,
+    teenth :: Boolean
+  }
+
+derive instance genericTriangle :: Generic DayInfo
+instance showDayInfo :: Show DayInfo where
+  show = gShow 
+
+dayInfoFromWeekday :: Weekday → DayInfo
+dayInfoFromWeekday weekday =
+  DayInfo { no: 1, week: 1, weekday: Just weekday, teenth: false }
+
+dayInfo :: Int → Int → Maybe Weekday → Boolean → DayInfo
+dayInfo no week weekday teenth =
+  DayInfo { no: no, week: week, weekday: weekday, teenth: teenth }
+
+next :: DayInfo -> DayInfo
+next (DayInfo { no, week, weekday, teenth }) =
+  dayInfo (no + 1)
+          (no `div` 7 + 1)
+          (case succ weekday of
+             Nothing -> Just Monday
+             Just wd -> wd)  
+          (if no >= 12 && no < 19
+              then true
+              else false)
 
 meetup :: Year -> Month -> Week -> Weekday -> Maybe Date
 meetup year month week weekday =
@@ -30,6 +63,11 @@ meetup year month week weekday =
     weekNumber' = weekNumber year month mFirstWeekday week weekday
     { week: _, day: day, teenth: _ } =
       F.foldl findDay { week: weekNumber', day: 0, teenth: week } $ monthWeekdays mFirstWeekday
+
+monthDaysInfo :: Weekday → Array DayInfo
+monthDaysInfo mFirstWeekday =
+  let initial = dayInfoFromWeekday mFirstWeekday
+   in A.cons initial $ T.scanl (\di _ -> next di) initial (A.range 1 30)
 
 monthWeekdays :: Weekday -> Array Weekday
 monthWeekdays mFirstWeekday =
