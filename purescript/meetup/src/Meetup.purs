@@ -8,7 +8,7 @@ import Data.Date
 import Partial.Unsafe
 import Prelude
 
-import Control.Apply (lift2)
+import Control.Apply (lift3)
 import Data.Array as A
 import Data.Enum (fromEnum, toEnum)
 import Data.Foldable as F
@@ -17,13 +17,14 @@ import Data.Maybe (Maybe(..))
 data Week = First | Second | Third | Fourth | Last | Teenth
 
 meetup :: Year -> Month -> Week -> Weekday -> Maybe Date
-meetup year month week day = unsafePartial meetup' (toEnum 2013) (toEnum 5) (toEnum 13)
-  where meetup' :: Partial => Maybe Year -> Maybe Month -> Maybe Day -> Maybe Date
-        meetup' (Just y) (Just m) (Just d) =
-          canonicalDate y m <$> toEnum (dayteenth Monday week Monday)
-
-dayteenth :: Weekday -> Week -> Weekday -> Int
-dayteenth monthFirst w d = F.sum [fromEnum monthFirst, weekOffset w, fromEnum d]
+meetup year month week weekday =
+  lift3 canonicalDate (pure year) (pure month) (toEnum day)
+  where
+    findDay acc@{ week: 0 } w = acc
+    findDay { week: n, day: d } w | w == weekday = { week: n - 1, day: d + 1 }
+    findDay { week: n, day: d } w = { week: n, day: d + 1 }
+    { week: _, day: day } =
+      F.foldl findDay { week: weekNumber week, day: 0 } $ monthWeekdays year month
 
 monthWeekdays :: Year -> Month -> Array Weekday
 monthWeekdays year month =
@@ -39,11 +40,12 @@ monthFirstWeekday year month = weekday $ canonicalDate year month $ unsafePartia
         firstDay = case toEnum 1 of
                         Just day -> day
 
-weekOffset w =
+weekNumber w =
   case w of
-       First -> 0
-       Second -> 7
-       Third -> 14
-       Fourth -> 21
-       Last -> 28
-       Teenth -> 12
+    First  -> 1
+    Second -> 2
+    Third  -> 3
+    Fourth -> 4
+    Last   -> 5
+    -- TODO
+    Teenth -> 1
