@@ -23,16 +23,20 @@ meetup year month week weekday =
     findDay acc@{ week: 0 } w = acc
     findDay { week: n, day: d } w | w == weekday = { week: n - 1, day: d + 1 }
     findDay { week: n, day: d } w = { week: n, day: d + 1 }
+    mFirstWeekday = monthFirstWeekday year month
+    weekNumber' = weekNumber year month mFirstWeekday week weekday
     { week: _, day: day } =
-      F.foldl findDay { week: weekNumber week, day: 0 } $ monthWeekdays year month
+      F.foldl findDay { week: weekNumber', day: 0 } $ monthWeekdays mFirstWeekday
 
-monthWeekdays :: Year -> Month -> Array Weekday
-monthWeekdays year month =
+monthWeekdays :: Weekday -> Array Weekday
+monthWeekdays mFirstWeekday =
   -- We omit the fact that different months have different numbers of days.
-  A.catMaybes (map toEnum weekdayNumbers)
-  where
-    weekdayNumbers = map (\i -> (i + firstWeekdayOffset) `mod` 7 + 1) (A.range 0 30)
-    firstWeekdayOffset = fromEnum (monthFirstWeekday year month) - 1
+  A.catMaybes (map toEnum $ weekdayNumbers)
+  where weekdayNumbers = map (integerToWeekdayNumber mFirstWeekday) (A.range 0 30)
+
+integerToWeekdayNumber :: Weekday -> Int -> Int
+integerToWeekdayNumber mFirstWeekday i = (i + firstWeekdayOffset) `mod` 7 + 1
+  where firstWeekdayOffset = fromEnum mFirstWeekday - 1
 
 monthFirstWeekday :: Year -> Month -> Weekday
 monthFirstWeekday year month = weekday $ canonicalDate year month $ unsafePartial firstDay
@@ -40,12 +44,15 @@ monthFirstWeekday year month = weekday $ canonicalDate year month $ unsafePartia
         firstDay = case toEnum 1 of
                         Just day -> day
 
-weekNumber w =
-  case w of
+weekNumber :: Year -> Month -> Weekday -> Week -> Weekday -> Int
+weekNumber year month mFirstWeekday whichWeek weekday =
+  case whichWeek of
     First  -> 1
     Second -> 2
     Third  -> 3
     Fourth -> 4
-    Last   -> 5
-    -- TODO
+    Last   -> if (isLeapYear year || month /= February)
+              && (A.elem weekday $ A.drop 28 $ monthWeekdays mFirstWeekday)
+                then 5
+                else 4
     Teenth -> 1
