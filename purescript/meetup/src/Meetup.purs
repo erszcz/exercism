@@ -5,6 +5,7 @@ module Meetup
   where
 
 import Data.Date
+import Debug.Trace
 import Partial.Unsafe
 import Prelude
 
@@ -22,12 +23,13 @@ meetup year month week weekday =
   lift3 canonicalDate (pure year) (pure month) (toEnum day)
   where
     findDay acc@{ week: 0 } w = acc
-    findDay { week: n, day: d } w | w == weekday = { week: n - 1, day: d + 1 }
-    findDay { week: n, day: d } w = { week: n, day: d + 1 }
+    findDay { week: n, day: d, teenth: t@Teenth } w | w == weekday && d >= 12 && d < 19 = { week: 0, day: d + 1, teenth: t }
+    findDay { week: n, day: d, teenth: t } w | w == weekday = { week: n - 1, day: d + 1, teenth: t }
+    findDay { week: n, day: d, teenth: t } w = { week: n, day: d + 1, teenth: t }
     mFirstWeekday = monthFirstWeekday year month
     weekNumber' = weekNumber year month mFirstWeekday week weekday
-    { week: _, day: day } =
-      F.foldl findDay { week: weekNumber', day: 0 } $ monthWeekdays mFirstWeekday
+    { week: _, day: day, teenth: _ } =
+      F.foldl findDay { week: weekNumber', day: 0, teenth: week } $ monthWeekdays mFirstWeekday
 
 monthWeekdays :: Weekday -> Array Weekday
 monthWeekdays mFirstWeekday =
@@ -60,9 +62,4 @@ weekNumber year month mFirstWeekday whichWeek weekday =
               && (A.elem weekday $ A.drop 28 $ monthWeekdays mFirstWeekday)
                 then 5
                 else 4
-    Teenth -> if 15 - (fromEnum mFirstWeekday) + (fromEnum weekday) <= 19
-                then 3
-                else 2
-
-teenth mFirstWeekday =
-  map (\i -> Tuple i (integerToWeekdayNumber mFirstWeekday i)) (A.range 13 19)
+    Teenth -> 100
