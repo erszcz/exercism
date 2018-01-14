@@ -4,20 +4,16 @@ module Meetup
   {--) --}
   where
 
-import Data.Date
-import Debug.Trace
-import Partial.Unsafe
 import Prelude
 
-import Control.Apply (lift2, lift3)
+import Control.Apply (lift3)
 import Data.Array as A
-import Data.Enum (class Enum, fromEnum, succ, toEnum)
-import Data.Foldable as F
+import Data.Date
+import Data.Enum (succ, toEnum)
 import Data.Generic (class Generic, gShow)
 import Data.Maybe (Maybe(..))
 import Data.Traversable as T
-import Data.Tuple (Tuple(..))
-import Math (cos)
+import Partial.Unsafe
 
 data Week = First | Second | Third | Fourth | Last | Teenth
 
@@ -27,6 +23,16 @@ data DayInfo = DayInfo
     weekday :: Maybe Weekday,
     teenth :: Boolean
   }
+
+meetup :: Year -> Month -> Week -> Weekday -> Maybe Date
+meetup year month week weekday =
+  lift3 canonicalDate (pure year) (pure month) (join $ toEnum <$> maybeDay)
+  where
+    days = eligibleDays year month week weekday
+    maybeDay = dayInfoNo <$> (A.last days)
+
+dayInfoNo :: DayInfo → Int
+dayInfoNo (DayInfo { no }) = no
 
 derive instance genericTriangle :: Generic DayInfo
 instance showDayInfo :: Show DayInfo where
@@ -51,53 +57,30 @@ next (DayInfo { no, week, weekday, teenth }) =
               then true
               else false)
 
-meetup :: Year -> Month -> Week -> Weekday -> Maybe Date
-meetup year month week weekday =
-  lift3 canonicalDate (pure year) (pure month) (toEnum day)
+eligibleDays :: Year → Month → Week → Weekday → Array DayInfo
+eligibleDays year month week weekday =
+  A.filter filterDay mInfo
   where
-    findDay acc@{ week: 0 } w = acc
-    findDay { week: n, day: d, teenth: t@Teenth } w | w == weekday && d >= 12 && d < 19 = { week: 0, day: d + 1, teenth: t }
-    findDay { week: n, day: d, teenth: t } w | w == weekday = { week: n - 1, day: d + 1, teenth: t }
-    findDay { week: n, day: d, teenth: t } w = { week: n, day: d + 1, teenth: t }
     mFirstWeekday = monthFirstWeekday year month
-    weekNumber' = weekNumber year month mFirstWeekday week weekday
-    { week: _, day: day, teenth: _ } =
-      F.foldl findDay { week: weekNumber', day: 0, teenth: week } $ monthWeekdays mFirstWeekday
+    mInfo = monthDaysInfo mFirstWeekday
+    filterDay (DayInfo { no: no, week: wk, weekday: wd, teenth: teenth }) =
+      case week of
+        First  -> wk == 1 && wd == (pure weekday)
+        Second -> wk == 2 && wd == (pure weekday)
+        Third  -> wk == 3 && wd == (pure weekday)
+        Fourth -> wk == 4 && wd == (pure weekday)
+        Last   -> wd == (pure weekday) 
+                  && ( ((isLeapYear year || month /= February) && wk == 5)
+                       || wk == 4 )
+        Teenth -> teenth  && wd == (pure weekday)
 
 monthDaysInfo :: Weekday → Array DayInfo
 monthDaysInfo mFirstWeekday =
   let initial = dayInfoFromWeekday mFirstWeekday
    in A.cons initial $ T.scanl (\di _ -> next di) initial (A.range 1 30)
 
-monthWeekdays :: Weekday -> Array Weekday
-monthWeekdays mFirstWeekday =
-  -- We omit the fact that different months have different numbers of days.
-  A.catMaybes (map toEnum $ weekdayNumbers)
-  where weekdayNumbers = map (integerToWeekdayNumber mFirstWeekday) (A.range 1 31)
-
-integerToWeekdayNumber :: Weekday -> Int -> Int
-integerToWeekdayNumber mFirstWeekday i = (i - 1 + firstWeekdayOffset) `mod` 7 + 1
-  where firstWeekdayOffset = fromEnum mFirstWeekday - 1
-
 monthFirstWeekday :: Year -> Month -> Weekday
 monthFirstWeekday year month = weekday $ canonicalDate year month $ unsafePartial firstDay
   where firstDay :: Partial => Day
         firstDay = case toEnum 1 of
                         Just day -> day
-
-weekNumber :: Year -> Month -> Weekday -> Week -> Weekday -> Int
-weekNumber year month mFirstWeekday whichWeek weekday =
-  case whichWeek of
-    First  -> 1
-    Second -> 2
-    Third  -> 3
-    Fourth -> 4
-    -- This probably still breaks in case of 30 day long months
-    -- and the fact that `monthWeekdays` returns 31 days.
-    -- A test for 31st of a month would pass the check below and give 5,
-    -- but canonicalDate would return the first day of the next month.
-    Last   -> if (isLeapYear year || month /= February)
-              && (A.elem weekday $ A.drop 28 $ monthWeekdays mFirstWeekday)
-                then 5
-                else 4
-    Teenth -> 100
