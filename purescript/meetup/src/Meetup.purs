@@ -14,29 +14,30 @@ import Data.Enum (fromEnum, toEnum)
 import Data.Foldable as F
 import Data.Maybe (Maybe(..))
 
-data Week = First
-          | Second
-          | Third
-          | Fourth
-          | Last
-          | Teenth
+data Week = First | Second | Third | Fourth | Last | Teenth
 
 meetup :: Year -> Month -> Week -> Weekday -> Maybe Date
 meetup year month week day = unsafePartial meetup' (toEnum 2013) (toEnum 5) (toEnum 13)
   where meetup' :: Partial => Maybe Year -> Maybe Month -> Maybe Day -> Maybe Date
         meetup' (Just y) (Just m) (Just d) =
-          canonicalDate y m <$> toEnum (dayteenth Monday week d)
+          canonicalDate y m <$> toEnum (dayteenth Monday week Monday)
 
-{--meetup :: Year -> Month -> Week -> Weekday -> Maybe Date--}
-{--meetup year month week day = canonicalDate year month <$> dayteenth (firstWeekday year month) week day--}
-
-dayteenth :: Weekday -> Week -> Day -> Int
-{--dayteenth i w d = (+) <$> (fromEnum <$> i) <@> (fromEnum d)--}
+dayteenth :: Weekday -> Week -> Weekday -> Int
 dayteenth monthFirst w d = F.sum [fromEnum monthFirst, weekOffset w, fromEnum d]
 
-  {--<@> (weekOffset w)--}
+monthWeekdays :: Year -> Month -> Array Weekday
+monthWeekdays year month =
+  -- We omit the fact that different months have different numbers of days.
+  A.catMaybes (map toEnum weekdayNumbers)
+  where
+    weekdayNumbers = map (\i -> (i + firstWeekdayOffset) `mod` 7 + 1) (A.range 0 30)
+    firstWeekdayOffset = fromEnum (monthFirstWeekday year month) - 1
 
-firstWeekday year month = weekday <$> canonicalDate year month <$> (toEnum 1)
+monthFirstWeekday :: Year -> Month -> Weekday
+monthFirstWeekday year month = weekday $ canonicalDate year month $ unsafePartial firstDay
+  where firstDay :: Partial => Day
+        firstDay = case toEnum 1 of
+                        Just day -> day
 
 weekOffset w =
   case w of
